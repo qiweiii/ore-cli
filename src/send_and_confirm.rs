@@ -24,7 +24,7 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
+const GATEWAY_RETRIES: usize = 60;
 const CONFIRM_RETRIES: usize = 1;
 
 const CONFIRM_DELAY: u64 = 0;
@@ -72,15 +72,13 @@ impl Miner {
         }
 
         let priority_fee = match &self.dynamic_fee_url {
-            Some(_) => {
-                self.dynamic_fee().await
-            }
-            None => {
-                self.priority_fee.unwrap_or(0)
-            }
+            Some(_) => self.dynamic_fee().await,
+            None => self.priority_fee.unwrap_or(0),
         };
 
-        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(priority_fee));
+        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
         final_ixs.extend_from_slice(ixs);
 
         // Build tx
@@ -99,7 +97,6 @@ impl Miner {
             .await
             .unwrap();
 
-        
         if signer.pubkey() == fee_payer.pubkey() {
             tx.sign(&[&signer], hash);
         } else {
@@ -109,10 +106,17 @@ impl Miner {
         // Submit tx
         let mut attempts = 0;
         loop {
-
             let message = match &self.dynamic_fee_url {
-                Some(_) => format!("Submitting transaction... (attempt {} with dynamic priority fee of {} via {})", attempts, priority_fee, self.dynamic_fee_strategy.as_ref().unwrap()),
-                None => format!("Submitting transaction... (attempt {} with static priority fee of {})", attempts, priority_fee),
+                Some(_) => format!(
+                    "Submitting transaction... (attempt {} with dynamic priority fee of {} via {})",
+                    attempts,
+                    priority_fee,
+                    self.dynamic_fee_strategy.as_ref().unwrap()
+                ),
+                None => format!(
+                    "Submitting transaction... (attempt {} with static priority fee of {})",
+                    attempts, priority_fee
+                ),
             };
 
             progress_bar.set_message(message);

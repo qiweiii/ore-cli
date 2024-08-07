@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, sync::RwLock, time::Instant};
 
 use colored::*;
 use drillx::{
@@ -49,7 +49,7 @@ impl Miner {
                 proof,
                 cutoff_time,
                 args.threads,
-                config.min_difficulty as u32,
+                // config.min_difficulty as u32,
             )
             .await;
 
@@ -76,60 +76,82 @@ impl Miner {
         proof: Proof,
         cutoff_time: u64,
         threads: u64,
-        min_difficulty: u32,
+        // min_difficulty: u32,
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
+        let global_best_difficulty = Arc::new(RwLock::new(0u32));
+
+        let min_difficulty = 22;
+
         let handles: Vec<_> = (0..threads)
             .map(|i| {
-                std::thread::spawn({
-                    let proof = proof.clone();
-                    let progress_bar = progress_bar.clone();
-                    let mut memory = equix::SolverMemory::new();
-                    move || {
-                        let timer = Instant::now();
-                        let mut nonce = u64::MAX.saturating_div(threads).saturating_mul(i);
-                        let mut best_nonce = nonce;
-                        let mut best_difficulty = 0;
-                        let mut best_hash = Hash::default();
-                        loop {
-                            // Create hash
-                            if let Ok(hx) = drillx::hash_with_memory(
-                                &mut memory,
-                                &proof.challenge,
-                                &nonce.to_le_bytes(),
-                            ) {
-                                let difficulty = hx.difficulty();
-                                if difficulty.gt(&best_difficulty) {
-                                    best_nonce = nonce;
-                                    best_difficulty = difficulty;
-                                    best_hash = hx;
+                let proof = proof.clone();
+                let progress_bar = progress_bar.clone();
+                let global_best_difficulty = global_best_difficulty.clone(); // Clone the Arc here
+                let mut memory = equix::SolverMemory::new();
+
+                std::thread::spawn(move || {
+                    let timer = Instant::now();
+                    let mut nonce = u64::MAX.saturating_div(threads).saturating_mul(i);
+                    let mut best_nonce = nonce;
+                    let mut best_difficulty = 0;
+                    let mut best_hash = Hash::default();
+                    loop {
+                        // Create hash
+                        if let Ok(hx) = drillx::hash_with_memory(
+                            &mut memory,
+                            &proof.challenge,
+                            &nonce.to_le_bytes(),
+                        ) {
+                            let difficulty = hx.difficulty();
+                            if difficulty.gt(&best_difficulty) {
+                                best_nonce = nonce;
+                                best_difficulty = difficulty;
+                                best_hash = hx;
+
+                                let mut global_best = global_best_difficulty.write().unwrap();
+                                if best_difficulty > *global_best {
+                                    *global_best = best_difficulty;
+                                    println!(
+                                        "New global best difficulty found: {} from thread {}",
+                                        best_difficulty, i
+                                    ); // Log update
                                 }
                             }
-
-                            // Exit if time has elapsed
-                            if nonce % 100 == 0 {
-                                if timer.elapsed().as_secs().ge(&cutoff_time) {
-                                    if best_difficulty.ge(&min_difficulty) {
-                                        // Mine until min difficulty has been met
-                                        break;
-                                    }
-                                } else if i == 0 {
-                                    progress_bar.set_message(format!(
-                                        "Mining... ({} sec remaining)",
-                                        cutoff_time.saturating_sub(timer.elapsed().as_secs()),
-                                    ));
-                                }
-                            }
-
-                            // Increment nonce
-                            nonce += 1;
                         }
 
-                        // Return the best nonce
-                        (best_nonce, best_difficulty, best_hash)
+                        // Exit if time has elapsed
+                        if nonce % 100 == 0 {
+                            let global_best_difficulty = *global_best_difficulty.read().unwrap();
+                            if timer.elapsed().as_secs().ge(&cutoff_time) {
+                                if i == 0 {
+                                    progress_bar.set_message(format!(
+                                        "Mining... ({} / {} difficulty)",
+                                        global_best_difficulty, min_difficulty
+                                    ));
+                                }
+                                if global_best_difficulty >= min_difficulty {
+                                    // Mine until min difficulty has been met
+                                    break;
+                                }
+                            } else if i == 0 {
+                                progress_bar.set_message(format!(
+                                    "Mining... ({} / {} difficulty, {} sec remaining)",
+                                    global_best_difficulty,
+                                    min_difficulty,
+                                    cutoff_time.saturating_sub(timer.elapsed().as_secs()),
+                                ));
+                            }
+                        }
+
+                        // Increment nonce
+                        nonce += 1;
                     }
+
+                    // Return the best nonce
+                    (best_nonce, best_difficulty, best_hash)
                 })
             })
             .collect();
