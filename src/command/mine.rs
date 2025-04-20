@@ -281,7 +281,7 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
 
-        let min_difficulty = 27;
+        let min_difficulty = 25;
 
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().expect("Failed to fetch core count");
@@ -353,10 +353,12 @@ impl Miner {
                                             global_best_difficulty,
                                         ));
                                     }
-                                    if global_best_difficulty.ge(&min_difficulty) {
-                                        // Mine until min difficulty has been met
-                                        break;
-                                    }
+                                    // Always break when time is up, regardless of difficulty
+                                    break;
+                                    // Remove the conditional break:
+                                    // if global_best_difficulty.ge(&min_difficulty) {
+                                    //    break;
+                                    // }
                                 } else if i.id == 0 {
                                     progress_bar.set_message(format!(
                                         "Mining...\n  Best score: {}\n  Time remaining: {}",
