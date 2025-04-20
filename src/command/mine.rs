@@ -343,7 +343,7 @@ impl Miner {
                             }
 
                             // Exit if time has elapsed
-                            if nonce % 100 == 0 {
+                            if nonce % 20 == 0 {
                                 let global_best_difficulty =
                                     *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
