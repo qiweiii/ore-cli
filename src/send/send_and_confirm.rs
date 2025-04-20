@@ -30,11 +30,11 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
+const GATEWAY_RETRIES: usize = 50;
 const CONFIRM_RETRIES: usize = 8;
 
 const CONFIRM_DELAY: u64 = 500;
-const GATEWAY_DELAY: u64 = 0;
+const GATEWAY_DELAY: u64 = 50;
 
 impl Miner {
     pub async fn send_and_confirm(
@@ -117,7 +117,7 @@ impl Miner {
             progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
 
             // Sign tx with a new blockhash (after approximately ~45 sec)
-            if attempts % 10 == 0 {
+            if attempts % 8 == 0 {
                 // Reset the compute unit price
                 if self.dynamic_fee {
                     let fee = match self.get_dynamic_priority_fee().await {
