@@ -281,6 +281,8 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
 
+        let min_difficulty = 27;
+
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().expect("Failed to fetch core count");
         let core_ids = core_ids.into_iter().filter(|id| id.id < (cores as usize));
