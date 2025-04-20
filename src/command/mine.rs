@@ -281,7 +281,7 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
 
-        let min_difficulty = 24;
+        let min_difficulty = 23;
 
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().expect("Failed to fetch core count");
@@ -343,7 +343,7 @@ impl Miner {
                             }
 
                             // Exit if time has elapsed
-                            if nonce % 20 == 0 {
+                            if nonce % 100 == 0 {
                                 let global_best_difficulty =
                                     *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
